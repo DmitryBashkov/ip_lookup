@@ -9,7 +9,8 @@ import requests
 import datetime
 import psycopg2
 import os
-import dotenv
+from dotenv import load_dotenv
+from time import sleep
 
 # you must procees a file path as a first argument
 file_path = sys.argv[1]
@@ -22,12 +23,19 @@ if file_path != None:
     with open(file_path) as file:
         for ip in file.read():
 
-            # this url got from ip-api.com
+            n += 1
+
             # for free (and non-commencial usage) is allows to process 45 request per minute.
+            sleep(1)
+
+            print(f'#{n}: Processing {ip}')
+
+            # this url got from ip-api.com
             # filed int is a combination of field to get
             url = f'http://ip-api.com/json/{ip}?fields=21745177'
             response = requests.get(url)
 
+            print('Got response')
             data = response.json()
 
             # in the response there is no ip address, so we add it maunally
@@ -49,15 +57,35 @@ if file_path != None:
                 VALUES ({placeholders})
             """
 
-            # 
+            # loading .env
+            load_dotenv()
+            
 
             conn = psycopg2.connect(
-                host="5.35.112.175",
-                port=55432,
-                dbname="cowrie",
-                user="cowrie",
-                password="changeme"
+                host=os.getenv('HOST'),
+                port=os.getenv('PORT'),
+                dbname=os.getenv('DB_NAME'),
+                user=os.getenv('DB_USER'),
+                password=os.getenv('DB_PASSWD')
             )
+
+            try:
+                with conn:
+                    with conn.cursor() as cur:
+                        cur.execute(query, data)
+            
+            except psycopg2.DatabaseError as e:
+                conn.rollback()
+                print(f'Database error: {e}')
+                raise
+
+            except Exception as e:
+                conn.rollback()
+                print(f'Unexpected error {e}')
+
+            finally:
+                conn.close()
+                print('Done')
 
 
 
